@@ -1,0 +1,919 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diagrama Interactivo - Diseño Mecánico & CAD/CAM/CAE</title>
+<style>
+  :root {
+    --bg: #0f172a; --card: #1e293b; --border: #334155; --text: #e2e8f0;
+    --text-muted: #94a3b8; --accent: #38bdf8; --accent2: #a78bfa;
+    --success: #22c55e; --warning: #f59e0b; --pink: #f472b6; --orange: #fb923c;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    background: linear-gradient(145deg, #0f172a 0%, #1e1b4b 45%, #0f172a 100%);
+    color: var(--text); min-height: 100vh; line-height: 1.55;
+  }
+  .layout {
+    display: flex;
+    min-height: 100vh;
+    width: 100%;
+  }
+  .tree-side {
+    flex: 1 1 auto;
+    min-width: 320px;
+    padding: 16px 18px 40px;
+    overflow-y: auto;
+    max-height: 100vh;
+  }
+  .resizer {
+    width: 6px;
+    background: var(--border);
+    cursor: col-resize;
+    flex: 0 0 6px;
+    transition: background 0.2s;
+    position: relative;
+    z-index: 10;
+  }
+  .resizer:hover, .resizer.dragging {
+    background: var(--accent);
+  }
+  .resizer::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 2px;
+    height: 40px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 2px;
+  }
+  .detail-panel {
+    flex: 0 0 480px;
+    width: 480px;
+    min-width: 320px;
+    max-width: 70vw;
+    background: #0c1222;
+    border-left: 1px solid var(--border);
+    padding: 0;
+    overflow-y: auto;
+    max-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  @media (max-width: 980px) {
+    .layout { flex-direction: column; }
+    .resizer { display: none; }
+    .detail-panel {
+      position: fixed; top: 0; right: 0; width: 100% !important; max-width: 520px;
+      height: 100%; z-index: 100; transform: translateX(100%); transition: transform 0.3s ease;
+      flex: none;
+    }
+    .detail-panel.open { transform: translateX(0); }
+    .overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 99; }
+    .overlay.show { display: block; }
+  }
+  .brand-header {
+    background: #ffffff;
+    border-radius: 14px;
+    border: 1px solid var(--border);
+    padding: 14px 16px 12px;
+    margin-bottom: 14px;
+    text-align: center;
+  }
+  .logos-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+  }
+  .logos-row img {
+    height: 58px;
+    width: auto;
+    object-fit: contain;
+  }
+  .docente-line {
+    font-size: 0.95rem;
+    color: #1e3a5f;
+    font-weight: 600;
+    letter-spacing: 0.2px;
+    padding-top: 6px;
+    border-top: 1px solid #e2e8f0;
+  }
+  header {
+    text-align: center; margin-bottom: 18px; padding: 18px 16px;
+    background: rgba(30, 41, 59, 0.85); border-radius: 14px; border: 1px solid var(--border);
+  }
+  header h1 {
+    font-size: 1.45rem;
+    background: linear-gradient(90deg, #38bdf8, #a78bfa, #f472b6);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 6px;
+  }
+  header p { color: var(--text-muted); font-size: 0.88rem; }
+  .controls { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .btn {
+    background: var(--card); color: var(--text); border: 1px solid var(--border);
+    padding: 8px 14px; border-radius: 9px; cursor: pointer; font-size: 0.82rem; font-weight: 500; transition: all 0.2s;
+  }
+  .btn:hover { background: var(--accent); color: #0f172a; border-color: var(--accent); }
+  .btn.secondary:hover { background: var(--accent2); border-color: var(--accent2); }
+  .hint { text-align: center; color: var(--text-muted); font-size: 0.82rem; margin-bottom: 12px; }
+  .tree-container {
+    background: rgba(30, 41, 59, 0.55); border-radius: 14px; border: 1px solid var(--border); padding: 14px 10px 24px;
+  }
+  .tree ul { list-style: none; padding-left: 0; }
+  .tree li { position: relative; padding: 3px 0 3px 24px; }
+  .tree li::before { content: ''; position: absolute; left: 9px; top: 0; bottom: 0; width: 1px; background: var(--border); }
+  .tree li:last-child::before { height: 16px; }
+  .tree li::after { content: ''; position: absolute; left: 9px; top: 16px; width: 12px; height: 1px; background: var(--border); }
+  .tree > ul > li::before, .tree > ul > li::after { display: none; }
+  .node {
+    display: inline-flex; align-items: center; gap: 7px; padding: 7px 12px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 9px;
+    cursor: pointer; transition: all 0.18s; user-select: none; font-size: 0.9rem;
+  }
+  .node:hover { border-color: var(--accent); background: #1e3a5f; transform: translateX(2px); }
+  .node.root {
+    background: linear-gradient(135deg, #1e3a5f, #312e81); border-color: var(--accent);
+    font-weight: 600; font-size: 0.98rem; padding: 10px 15px;
+  }
+  .node.has-detail { border-left: 3px solid var(--warning); }
+  .node.has-detail::after { content: '📘'; font-size: 0.75rem; margin-left: 4px; }
+  .toggle {
+    width: 20px; height: 20px; border-radius: 5px; background: rgba(56, 189, 248, 0.15);
+    border: 1px solid var(--accent); color: var(--accent); display: inline-flex;
+    align-items: center; justify-content: center; font-size: 13px; font-weight: bold; flex-shrink: 0;
+  }
+  .node.expanded > .toggle { background: var(--accent); color: #0f172a; }
+  .node.leaf { cursor: default; background: rgba(30,41,59,0.45); border-style: dashed; }
+  .node.leaf:hover { transform: none; border-color: var(--border); }
+  .node.leaf .toggle { display: none; }
+  .children { display: none; margin-top: 4px; padding-left: 6px; }
+  .node.expanded + .children { display: block; }
+  .branch-3 .node:not(.leaf) { border-left: 3px solid #22c55e; }
+  .branch-4 .node:not(.leaf) { border-left: 3px solid #f59e0b; }
+  /* detail-panel styles moved to layout section */
+  .detail-header {
+    padding: 16px 18px; background: linear-gradient(135deg, #1e3a5f, #312e81);
+    border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 5;
+  }
+  .detail-header h2 { font-size: 1.12rem; margin-bottom: 4px; }
+  .detail-header .close-btn {
+    float: right; background: transparent; border: 1px solid rgba(255,255,255,0.3);
+    color: white; width: 30px; height: 30px; border-radius: 8px; cursor: pointer; font-size: 1.1rem;
+  }
+  .detail-body { padding: 18px; flex: 1; }
+  .detail-body h3 { font-size: 0.95rem; color: var(--accent); margin: 18px 0 8px; display: flex; align-items: center; gap: 6px; }
+  .detail-body h3:first-child { margin-top: 0; }
+  .detail-body p, .detail-body li { font-size: 0.88rem; color: #cbd5e1; margin-bottom: 8px; }
+  .detail-body ul, .detail-body ol { padding-left: 18px; margin-bottom: 12px; }
+  .detail-body li { margin-bottom: 5px; }
+  .video-card, .resource-card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+    padding: 12px; margin: 10px 0; transition: border-color 0.2s;
+  }
+  .video-card:hover, .resource-card:hover { border-color: var(--accent); }
+  .video-card a, .resource-card a { color: var(--accent); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+  .video-card a:hover, .resource-card a:hover { text-decoration: underline; }
+  .video-card .meta, .resource-card .meta { font-size: 0.78rem; color: var(--text-muted); margin-top: 4px; }
+  .tag {
+    display: inline-block; font-size: 0.7rem; padding: 2px 8px; border-radius: 12px;
+    margin-right: 5px; margin-bottom: 4px; background: rgba(56,189,248,0.15); color: var(--accent);
+  }
+  .tag.sim { background: rgba(34,197,94,0.15); color: #4ade80; }
+  .tag.video { background: rgba(244,114,182,0.15); color: #f472b6; }
+  .tag.tool { background: rgba(251,146,60,0.15); color: #fb923c; }
+  .empty-state {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; padding: 40px 20px; text-align: center; color: var(--text-muted);
+  }
+  .empty-state .icon { font-size: 3rem; margin-bottom: 12px; opacity: 0.5; }
+  .highlight-box {
+    background: rgba(56,189,248,0.08); border-left: 3px solid var(--accent);
+    padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; font-size: 0.86rem;
+  }
+  .comparison-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; margin: 10px 0; }
+  .comparison-table th, .comparison-table td { border: 1px solid var(--border); padding: 6px 8px; text-align: left; }
+  .comparison-table th { background: rgba(56,189,248,0.12); color: var(--accent); }
+  footer { text-align: center; margin-top: 20px; color: var(--text-muted); font-size: 0.8rem; }
+</style>
+</head>
+<body>
+  <div class="overlay" id="overlay" onclick="closeDetail()"></div>
+  <div class="layout">
+    <div class="tree-side">
+      <div class="brand-header">
+        <div class="logos-row">
+          <img src="LOGO1.png" alt="Instituto Tecnológico Superior de Atlixco">
+          <img src="LOGO2.png" alt="Tecnológico Nacional de México">
+          <img src="LOGO3.png" alt="Ingeniería Mecatrónica">
+        </div>
+        <div class="docente-line">Docente: Dr. José Reyes Rosales</div>
+      </div>
+      <header>
+        <h1>Diseño Mecánico + CAD / CAM / CAE</h1>
+        <p>Haz clic en los nodos con 📘 para ver explicación, videos y recursos didácticos</p>
+      </header>
+      <div class="controls">
+        <button class="btn" onclick="expandAll()">⬇ Expandir todo</button>
+        <button class="btn secondary" onclick="collapseAll()">⬆ Contraer</button>
+        <button class="btn" onclick="focusSection(3)">Diseño Mecánico</button>
+        <button class="btn" onclick="focusSection(4)">CAD/CAM/CAE</button>
+      </div>
+      <p class="hint">Nodos con borde naranja + 📘 = contenido expandido para la clase.</p>
+      <div class="tree-container"><div class="tree" id="tree"></div></div>
+      <footer>Material para clase · Automatización de Procesos · 2026</footer>
+    </div>
+    <div class="resizer" id="resizer" title="Arrastra para cambiar el tamaño del panel"></div>
+    <div class="detail-panel" id="detailPanel">
+      <div class="empty-state" id="emptyState">
+        <div class="icon">📘</div>
+        <p><strong>Selecciona un subtema</strong></p>
+        <p style="margin-top:8px;font-size:0.85rem">Haz clic en cualquier nodo con 📘<br>para ver la explicación detallada,<br>videos y recursos.</p>
+      </div>
+      <div id="detailContent" style="display:none;">
+        <div class="detail-header">
+          <button class="close-btn" onclick="closeDetail()">×</button>
+          <h2 id="detailTitle">Título</h2>
+          <div id="detailTags"></div>
+        </div>
+        <div class="detail-body" id="detailBody"></div>
+      </div>
+    </div>
+  </div>
+<script>
+const details = {
+  "concepto-mecanico": {
+    title: "Concepto Mecánico y Cinemática",
+    tags: ["Fundamentos", "Cinemática", "Mecanismos"],
+    content: `
+      <h3>🎯 ¿Qué es?</h3>
+      <p>El <strong>concepto mecánico</strong> define <em>cómo</em> se genera, transmite y transforma el movimiento. La <strong>cinemática</strong> estudia posición, velocidad y aceleración sin considerar fuerzas.</p>
+      <div class="highlight-box"><strong>Objetivo:</strong> Diseñar la trayectoria y el tipo de movimiento antes de dimensionar fuerzas o seleccionar actuadores.</div>
+      <h3>📌 Conceptos clave</h3>
+      <ul>
+        <li><strong>Grados de libertad (DOF):</strong> Movimientos independientes (un cuerpo libre tiene 6).</li>
+        <li><strong>Cinemática directa:</strong> Variables articulares → posición del efector.</li>
+        <li><strong>Cinemática inversa:</strong> Posición deseada → variables articulares (más compleja).</li>
+        <li><strong>Mecanismo vs Máquina:</strong> Mecanismo transmite movimiento; máquina transmite fuerza/energía.</li>
+        <li><strong>Singularidades:</strong> Configuraciones donde se pierde un DOF o se bloquea.</li>
+      </ul>
+      <h3>🎬 Videos recomendados</h3>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=lQLGaiUkyAI" target="_blank">▶ 51 Mechanical Mechanisms (3D)</a><div class="meta">10 min · Compilación visual excelente</div><span class="tag video">Video</span></div>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=um017OQ5tMw" target="_blank">▶ 1000 Mechanical Principles Basic</a><div class="meta">45 min · Gran cantidad de principios animados</div><span class="tag video">Video</span></div>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=rSAmFWF6eg8" target="_blank">▶ Mechanisms Every Engineer Should Know</a><div class="meta">10 min · Mecanismos esenciales</div><span class="tag video">Video</span></div>
+      <h3>💡 Consejo de clase</h3>
+      <p>Muestra un mecanismo de 4 barras o cigüeñal-biela y pregunta qué movimiento de entrada genera qué salida. Luego introduce DOF con un robot de 6 ejes.</p>
+    `
+  },
+  "actuadores-neumo-hidro": {
+    title: "Cilindros Neumáticos e Hidráulicos",
+    tags: ["Actuadores", "Neumática", "Hidráulica"],
+    content: `
+      <h3>🎯 ¿Qué son?</h3>
+      <p>Convierten energía de un fluido a presión (aire u aceite) en movimiento lineal o rotativo.</p>
+      <table class="comparison-table">
+        <tr><th>Criterio</th><th>Neumático</th><th>Hidráulico</th></tr>
+        <tr><td>Fluido</td><td>Aire (4-10 bar)</td><td>Aceite (100-350+ bar)</td></tr>
+        <tr><td>Fuerza</td><td>Media</td><td>Muy alta</td></tr>
+        <tr><td>Velocidad</td><td>Muy rápida</td><td>Alta y controlable</td></tr>
+        <tr><td>Precisión</td><td>Baja-Media</td><td>Alta (servoválvulas)</td></tr>
+        <tr><td>Uso típico</td><td>Pick & place, clamping</td><td>Prensas, maquinaria pesada</td></tr>
+      </table>
+      <h3>🎬 Videos</h3>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=-VHzBl6vR3o" target="_blank">▶ Atuadores Pneumáticos e Hidráulicos</a><div class="meta">17 min · Funcionamiento y selección</div><span class="tag video">Video</span></div>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=YzgFyO_W2nM" target="_blank">▶ Ultimate Guide To Linear Actuators</a><div class="meta">27 min · Guía práctica completa</div><span class="tag video">Video</span></div>
+      <div class="highlight-box">Calcula en vivo la fuerza de un cilindro Ø63 mm a 6 bar vs el mismo a 200 bar hidráulico. El contraste es muy didáctico.</div>
+    `
+  },
+  "servomotores-stepper": {
+    title: "Servomotores y Motores Paso a Paso",
+    tags: ["Motion Control", "Eléctricos"],
+    content: `
+      <h3>🎯 Diferencia clave</h3>
+      <p><strong>Stepper:</strong> Lazo abierto (cuenta pulsos). <strong>Servo:</strong> Lazo cerrado con encoder (corrige error continuamente).</p>
+      <table class="comparison-table">
+        <tr><th>Aspecto</th><th>Stepper</th><th>Servo</th></tr>
+        <tr><td>Precisión alta velocidad</td><td>Limitada</td><td>Excelente</td></tr>
+        <tr><td>Carga variable</td><td>Puede perder pasos</td><td>Se adapta</td></tr>
+        <tr><td>Costo</td><td>Más bajo</td><td>Más alto</td></tr>
+        <tr><td>Uso típico</td><td>Impresoras 3D, ejes ligeros</td><td>Robots, sincronización, alta dinámica</td></tr>
+      </table>
+      <h3>📌 Proceso de selección</h3>
+      <ol>
+        <li>Perfil de movimiento (distancia, tiempo, aceleración)</li>
+        <li>Torque de carga + aceleración</li>
+        <li>Inercia reflejada al motor</li>
+        <li>Relación de inercias (ideal &lt; 5:1 a 10:1)</li>
+        <li>Elegir motor + reductor si aplica</li>
+      </ol>
+      <h3>🎬 Videos</h3>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=sH2kzHz0i5g" target="_blank">▶ Servo vs Stepper Motor</a><div class="meta">Diferencias claras y cuándo usar cada uno</div><span class="tag video">Video</span></div>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=9MG8-3QuSyQ" target="_blank">▶ How to Determine Motor Size (RealPars)</a><div class="meta">15 min · Dimensionamiento completo</div><span class="tag video">Video</span></div>
+    `
+  },
+  "actuadores-lineales": {
+    title: "Actuadores Lineales Eléctricos",
+    tags: ["Actuadores", "Motion"],
+    content: `
+      <h3>🎯 Función</h3>
+      <p>Convierten rotación de un motor en movimiento lineal preciso (husillo a bolas, trapezoidal, correa o cremallera).</p>
+      <ul>
+        <li><strong>Husillo a bolas + servo:</strong> Alta precisión y eficiencia (CNC, cartesianos).</li>
+        <li><strong>Husillo trapezoidal:</strong> Económico, auto-bloqueante.</li>
+        <li><strong>Correa dentada:</strong> Altas velocidades, carreras largas.</li>
+        <li><strong>Cremallera y piñón:</strong> Carreras muy largas y buena rigidéz.</li>
+      </ul>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=YzgFyO_W2nM" target="_blank">▶ Ultimate Guide To Linear Actuators</a><div class="meta">27 min · Muy completo</div><span class="tag video">Video</span></div>
+      <div class="highlight-box">Si necesitas precisión + control de velocidad/aceleración → eléctrico. Si solo dos posiciones y fuerza media → neumático suele ser más simple.</div>
+    `
+  },
+  "robots": {
+    title: "Robots Industriales",
+    tags: ["Robótica", "Arquitecturas"],
+    content: `
+      <h3>🎯 Arquitecturas principales</h3>
+      <ul>
+        <li><strong>Cartesiano / Gantry:</strong> 3 ejes lineales. Simple, gran área, alta rigidéz.</li>
+        <li><strong>SCARA:</strong> Muy rápido en plano horizontal. Ideal ensamble electrónico.</li>
+        <li><strong>Articular 6 ejes:</strong> Máxima flexibilidad y orientaciones.</li>
+        <li><strong>Delta:</strong> Altísima velocidad, carga ligera (packaging).</li>
+        <li><strong>Cobots:</strong> Trabajo colaborativo con humanos (ISO/TS 15066).</li>
+      </ul>
+      <h3>📌 Criterios de selección</h3>
+      <ul>
+        <li>Payload (incluye herramienta)</li>
+        <li>Alcance (reach) y repetibilidad</li>
+        <li>DOF necesarios y tiempo de ciclo</li>
+        <li>Entorno colaborativo o industrial clásico</li>
+      </ul>
+      <div class="highlight-box">Compara en clase un SCARA haciendo ensamble rápido vs un 6 ejes orientando pieza en espacio estrecho. Pregunta cuál usarían en cada caso.</div>
+    `
+  },
+  "estructuras-chasis": {
+    title: "Diseño de Estructuras y Chasis",
+    tags: ["Rigidez", "Modularidad"],
+    content: `
+      <h3>🎯 Objetivo</h3>
+      <p>Soportar elementos móviles y fijos garantizando <strong>rigidez</strong>, estabilidad y facilidad de montaje/mantenimiento.</p>
+      <ul>
+        <li>Rigidez vs peso (más rigidéz = mejor precisión, pero más inercia).</li>
+        <li>Evitar coincidencia de frecuencias naturales con excitaciones.</li>
+        <li>Modularidad (perfiles de aluminio extruido facilitan cambios).</li>
+        <li>Accesibilidad para mantenimiento.</li>
+      </ul>
+      <div class="highlight-box">En automatización moderna el perfil de aluminio estructural (tipo 80/20, Bosch, Item) permite prototipar y modificar rápido sin soldadura.</div>
+    `
+  },
+  "transmision": {
+    title: "Sistemas de Transmisión",
+    tags: ["Transmisión", "Reducción"],
+    content: `
+      <h3>🎯 Función</h3>
+      <p>Transmitir movimiento y potencia adaptando velocidad y torque.</p>
+      <ul>
+        <li><strong>Correas dentadas:</strong> Silenciosas, sin holgura, altas velocidades.</li>
+        <li><strong>Cadenas:</strong> Alta fuerza, requieren lubricación.</li>
+        <li><strong>Engranajes / planetarios / harmónicos:</strong> Reducción compacta (robots).</li>
+        <li><strong>Husillos a bolas:</strong> Rotativo → lineal de alta precisión.</li>
+        <li><strong>Cremallera y piñón:</strong> Carreras largas.</li>
+      </ul>
+      <h3>⚠️ Problemas típicos</h3>
+      <ul>
+        <li>Holgura (backlash) → afecta precisión</li>
+        <li>Elasticidad → reduce ancho de banda del control</li>
+        <li>Rendimiento → afecta dimensionamiento del motor</li>
+      </ul>
+    `
+  },
+  "sujecion": {
+    title: "Elementos de Sujeción y Manipulación",
+    tags: ["End effector", "Gripper"],
+    content: `
+      <h3>🎯 El end-effector</h3>
+      <p>Es la “mano” del sistema. Su diseño determina gran parte del éxito de la aplicación.</p>
+      <ul>
+        <li>Pinzas mecánicas (paralelas, angulares, 3 dedos)</li>
+        <li>Ventosas (vacuum) – superficies lisas y packaging</li>
+        <li>Electromagnéticas – piezas ferromagnéticas</li>
+        <li>Soft robotics / agarre adaptativo – piezas irregulares o frágiles</li>
+        <li>Tool changers – cambio rápido de herramienta</li>
+      </ul>
+      <div class="highlight-box">Minimiza el peso del gripper: está en el extremo del robot y afecta directamente el payload y la inercia.</div>
+    `
+  },
+  "guias": {
+    title: "Guía y Soporte de Movimiento",
+    tags: ["Guías lineales", "Precisión"],
+    content: `
+      <h3>🎯 Función</h3>
+      <p>Soportar cargas, guiar con precisión y absorber fuerzas y momentos.</p>
+      <ul>
+        <li><strong>Guías de recirculación de bolas:</strong> Alta precisión y carga (estándar actual).</li>
+        <li>Casquillos / bushings – más económicos.</li>
+        <li>Guías de rodillos – cargas muy altas o ambientes sucios.</li>
+      </ul>
+      <h3>Factores críticos</h3>
+      <ul>
+        <li>Paralelismo y alineación</li>
+        <li>Precarga de los carros (rigidez vs vida útil)</li>
+        <li>Protección contra contaminación y lubricación</li>
+        <li>Cálculo de vida útil L10</li>
+      </ul>
+    `
+  },
+  "seguridad-mecanica": {
+    title: "Seguridad Mecánica",
+    tags: ["Seguridad", "ISO"],
+    content: `
+      <h3>🎯 Principio</h3>
+      <p>La seguridad se diseña desde el concepto. Normas clave: ISO 13849, ISO 12100, ISO 10218 (robots), ISO/TS 15066 (cobots).</p>
+      <ul>
+        <li>Resguardos fijos/móviles con enclavamiento</li>
+        <li>Cortinas ópticas y escáneres de área</li>
+        <li>Paradas de emergencia (cat. 0 y 1)</li>
+        <li>Limitación de fuerza/potencia (cobots)</li>
+        <li>Validación de funciones de seguridad (PL / SIL)</li>
+      </ul>
+      <div class="highlight-box">Nunca desactives una función de seguridad “porque molesta en la puesta en marcha”.</div>
+    `
+  },
+  "materiales": {
+    title: "Materiales y Tratamientos Superficiales",
+    tags: ["Materiales"],
+    content: `
+      <h3>📌 Criterios de selección</h3>
+      <ul>
+        <li>Resistencia y rigidéz específicas</li>
+        <li>Peso (crítico en partes móviles)</li>
+        <li>Corrosión, desgaste y entorno (alimentario, limpio, ATEX…)</li>
+        <li>Maquinabilidad y costo</li>
+      </ul>
+      <h3>Tratamientos comunes</h3>
+      <ul>
+        <li>Anodizado, niquelado, cincado</li>
+        <li>Temple, nitruración, cementación</li>
+        <li>Recubrimientos PVD / DLC</li>
+      </ul>
+    `
+  },
+  "cad-intro": {
+    title: "CAD – Computer-Aided Design",
+    tags: ["CAD", "Diseño 3D"],
+    content: `
+      <h3>🎯 ¿Qué es CAD?</h3>
+      <p>Software que permite crear, modificar, analizar y documentar diseños en 2D y 3D de forma digital. Es la base de todo el flujo posterior (CAE y CAM).</p>
+      <div class="highlight-box"><strong>Flujo típico:</strong> Concepto → Modelo 3D paramétrico → Ensamble → Planos 2D → BOM → Exportación a CAE/CAM.</div>
+      <h3>📌 Capacidades principales</h3>
+      <ul>
+        <li>Modelado de sólidos, superficies y superficies libres</li>
+        <li>Diseño paramétrico (dimensiones y relaciones controlan la geometría)</li>
+        <li>Ensamblajes con mates/constraints</li>
+        <li>Generación automática de planos y listas de materiales (BOM)</li>
+        <li>Configuraciones y familias de piezas</li>
+      </ul>
+      <h3>🛠️ Software más usados en industria</h3>
+      <ul>
+        <li><strong>SolidWorks</strong> – Muy extendido en pymes y educación</li>
+        <li><strong>Autodesk Inventor / Fusion 360</strong></li>
+        <li><strong>Siemens NX / Solid Edge</strong></li>
+        <li><strong>PTC Creo</strong></li>
+        <li><strong>CATIA</strong> – Aeroespacial y automoción de alto nivel</li>
+      </ul>
+      <h3>🎬 Recursos</h3>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=KY-otBxSSKU" target="_blank">▶ Introduction to CAD/CAM/CAE</a><div class="meta">9 min · Visión general clara</div><span class="tag video">Video</span></div>
+      <div class="video-card"><a href="https://www.youtube.com/results?search_query=SolidWorks+tutorial+for+beginners" target="_blank">▶ SolidWorks Tutorials for Beginners</a><div class="meta">Busca canales como CAD CAM Tutorials</div><span class="tag video">Video</span></div>
+    `
+  },
+  "modelado-3d": {
+    title: "Modelado 3D de Piezas y Ensamblajes",
+    tags: ["CAD", "Modelado"],
+    content: `
+      <h3>🎯 Enfoque moderno</h3>
+      <p>Se trabaja casi siempre en <strong>sólidos paramétricos</strong>. Cada operación (extrusión, revolución, barrido, loft…) queda registrada en un árbol de historial y puede editarse después.</p>
+      <h3>📌 Buenas prácticas</h3>
+      <ul>
+        <li>Empieza con un sketch robusto (fully defined)</li>
+        <li>Usa relaciones y cotas en lugar de cotas fijas cuando sea posible</li>
+        <li>Nombra features y cuerpos de forma descriptiva</li>
+        <li>Diseña pensando en fabricación (DFM) desde el principio</li>
+        <li>En ensamblajes: mates coherentes y evita mates redundantes</li>
+      </ul>
+      <div class="highlight-box">Un modelo “limpio” (buen árbol de features y referencias estables) ahorra horas cuando hay que hacer cambios o enviarlo a simulación/CAM.</div>
+    `
+  },
+  "parametrico": {
+    title: "Diseño Paramétrico y Configuraciones",
+    tags: ["CAD", "Paramétrico"],
+    content: `
+      <h3>🎯 ¿Por qué paramétrico?</h3>
+      <p>Las cotas y relaciones controlan la geometría. Cambiar una cota o variable actualiza automáticamente el modelo y los planos asociados.</p>
+      <h3>📌 Configuraciones / Design Tables</h3>
+      <ul>
+        <li>Permiten múltiples variantes de una pieza o ensamble en un solo archivo</li>
+        <li>Muy útiles para familias de productos, posiciones de mecanismos u opciones de montaje</li>
+        <li>Se pueden controlar desde tablas de Excel (Design Table)</li>
+      </ul>
+      <div class="highlight-box">En automatización se usan mucho las configuraciones para representar el mecanismo en diferentes posiciones (abierto/cerrado, distintas carreras…).</div>
+    `
+  },
+  "planos-bom": {
+    title: "Planos 2D y Gestión de BOM",
+    tags: ["Documentación", "BOM"],
+    content: `
+      <h3>🎯 Planos de fabricación y montaje</h3>
+      <p>Aunque el 3D es la referencia principal, los planos 2D siguen siendo necesarios para taller, proveedores y calidad.</p>
+      <ul>
+        <li>Vistas ortogonales, secciones, detalles y tolerancias geométricas (GD&T)</li>
+        <li>Lista de materiales (BOM) vinculada al ensamble</li>
+        <li>Globos / balloons automáticos</li>
+        <li>Formatos de plano normalizados de la empresa</li>
+      </ul>
+      <h3>BOM (Bill of Materials)</h3>
+      <p>Lista estructurada de componentes, cantidades, materiales y referencias. Debe estar sincronizada con el modelo 3D y, idealmente, con ERP/PLM.</p>
+    `
+  },
+  "cae-intro": {
+    title: "CAE – Computer-Aided Engineering",
+    tags: ["CAE", "Simulación"],
+    content: `
+      <h3>🎯 ¿Qué es CAE?</h3>
+      <p>Herramientas que permiten <strong>simular el comportamiento físico</strong> del diseño (estructuras, térmica, fluidos, dinámica…) antes de fabricar. Responde: <em>“¿Este diseño funcionará bajo condiciones reales?”</em></p>
+      <div class="highlight-box"><strong>Flujo:</strong> CAD → CAE (validación) → si falla vuelve a CAD → cuando pasa, va a CAM.</div>
+      <h3>📌 Tipos de análisis más comunes</h3>
+      <ul>
+        <li><strong>FEA / MEF estructural:</strong> Tensiones, deformaciones, factor de seguridad</li>
+        <li><strong>Dinámico y vibraciones:</strong> Frecuencias naturales, respuesta modal, fatiga</li>
+        <li><strong>Térmico:</strong> Distribución de temperatura y dilaciones</li>
+        <li><strong>CFD:</strong> Flujo de fluidos, presión, transferencia de calor</li>
+        <li><strong>Motion / Multibody:</strong> Cinemática y dinámica de mecanismos</li>
+      </ul>
+      <h3>🎬 Recursos</h3>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=xeK25-2xipo" target="_blank">▶ SOLIDWORKS Simulation for Education</a><div class="meta">6 min · Visión integrada</div><span class="tag video">Video</span></div>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=LO0sFaok6lQ" target="_blank">▶ Basics of CAE/FEA</a><div class="meta">Introducción clara a FEA</div><span class="tag video">Video</span></div>
+    `
+  },
+  "fea": {
+    title: "Análisis Estructural (FEA / MEF)",
+    tags: ["FEA", "Estructuras"],
+    content: `
+      <h3>🎯 Método de Elementos Finitos</h3>
+      <p>Divide la geometría en elementos (malla), aplica condiciones de contorno y resuelve el sistema para obtener tensiones, desplazamientos, etc.</p>
+      <h3>📌 Flujo de trabajo típico</h3>
+      <ol>
+        <li>Usar o importar el modelo CAD</li>
+        <li>Definir material (Young, Poisson, densidad, límite elástico…)</li>
+        <li>Aplicar fijaciones y cargas</li>
+        <li>Generar malla (refinar en zonas críticas)</li>
+        <li>Ejecutar el solver</li>
+        <li>Interpretar resultados (von Mises, desplazamientos, FS)</li>
+        <li>Iterar el diseño si es necesario</li>
+      </ol>
+      <div class="highlight-box">La calidad de la malla y de las condiciones de contorno determina la utilidad del resultado. Una malla gruesa o fijaciones incorrectas pueden dar números “bonitos” pero falsos.</div>
+      <div class="video-card"><a href="https://www.youtube.com/playlist?list=PLUV3Ne7dNBa7daZ-qx0o50YPXX9NVHqaC" target="_blank">▶ SOLIDWORKS Simulation Course for Beginners</a><div class="meta">Curso completo gratuito</div><span class="tag video">Video</span></div>
+    `
+  },
+  "dinamico-vibraciones": {
+    title: "Análisis Dinámico y de Vibraciones",
+    tags: ["Dinámica", "Modal"],
+    content: `
+      <h3>🎯 ¿Por qué es importante?</h3>
+      <p>En automatización hay movimientos rápidos, motores e impactos. Un diseño estáticamente resistente puede fallar por fatiga o resonancia.</p>
+      <ul>
+        <li><strong>Análisis modal:</strong> Frecuencias naturales y modos de vibración</li>
+        <li><strong>Respuesta en frecuencia:</strong> Comportamiento ante excitaciones</li>
+        <li><strong>Transitorio / dinámico:</strong> Respuesta en el tiempo</li>
+        <li><strong>Fatiga:</strong> Vida útil bajo cargas cíclicas</li>
+      </ul>
+      <div class="highlight-box">Regla práctica: las frecuencias naturales deben estar suficientemente alejadas de las frecuencias de excitación (motores, ciclos de máquina…).</div>
+    `
+  },
+  "termico-cfd": {
+    title: "Análisis Térmico y CFD",
+    tags: ["Térmico", "CFD"],
+    content: `
+      <h3>Análisis térmico</h3>
+      <p>Distribución de temperatura, gradientes y dilaciones. Crítico en motores, armarios eléctricos, frenos, moldes, etc.</p>
+      <h3>CFD (Computational Fluid Dynamics)</h3>
+      <p>Simula flujo de líquidos o gases: velocidad, presión, turbulencia, transferencia de calor. Usado en refrigeración, válvulas, conductos y aerodinámica de piezas móviles.</p>
+      <div class="highlight-box">En automatización se usa CFD con frecuencia para validar refrigeración de armarios, flujo neumático/hidráulico y disipación de calor de motores y drivers.</div>
+    `
+  },
+  "simulacion-mecanismos": {
+    title: "Simulación de Mecanismos (Motion)",
+    tags: ["Motion", "Dinámica"],
+    content: `
+      <h3>🎯 Qué permite</h3>
+      <p>Simular el movimiento real del mecanismo (cinemática y dinámica) dentro del CAD: detectar colisiones, calcular fuerzas en juntas, torques de motores, energía, etc.</p>
+      <ul>
+        <li>Verificar interferencias en todo el ciclo</li>
+        <li>Obtener el torque/fuerza que debe entregar cada actuador</li>
+        <li>Estudiar tiempos de ciclo y perfiles de movimiento</li>
+        <li>Exportar datos para dimensionar motores y reductores</li>
+      </ul>
+      <div class="highlight-box">Herramientas: SolidWorks Motion, Inventor Dynamic Simulation, Adams, RecurDyn, Simscape Multibody.</div>
+    `
+  },
+  "topologia": {
+    title: "Optimización Topológica y Diseño Generativo",
+    tags: ["Optimización", "Generativo"],
+    content: `
+      <h3>🎯 Dos enfoques</h3>
+      <p><strong>Optimización topológica:</strong> Parte de un diseño existente y elimina material innecesario manteniendo rigidéz/resistencia. Produce formas orgánicas.</p>
+      <p><strong>Diseño generativo:</strong> Explora muchas soluciones desde cero a partir de requisitos (cargas, restricciones de fabricación, peso…) y propone alternativas.</p>
+      <h3>📌 Beneficios</h3>
+      <ul>
+        <li>Reducción significativa de peso</li>
+        <li>Mejor uso de material (especialmente con fabricación aditiva)</li>
+        <li>Formas que un diseñador humano difícilmente propondría</li>
+      </ul>
+      <h3>🎬 Videos</h3>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=4-qlpNNLMN4" target="_blank">▶ Cómo reducir material sin perder resistencia</a><div class="meta">7 min · Explicación clara en español</div><span class="tag video">Video</span></div>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=wnBMCP-CtIw" target="_blank">▶ Diseño Generativo con Fusion 360</a><div class="meta">27 min · Demostración práctica</div><span class="tag video">Video</span></div>
+      <div class="highlight-box">Ideal para soportes, brackets y piezas que se fabricarán por impresión 3D metálica o mecanizado de bloques.</div>
+    `
+  },
+  "cam-intro": {
+    title: "CAM – Computer-Aided Manufacturing",
+    tags: ["CAM", "CNC"],
+    content: `
+      <h3>🎯 ¿Qué es CAM?</h3>
+      <p>Software que toma el modelo CAD validado y genera las <strong>trayectorias de herramienta</strong> y el código NC (G-code) que controlará la máquina CNC.</p>
+      <div class="highlight-box"><strong>Posición en el flujo:</strong> Solo se usa cuando el diseño ya pasó CAE (o se decidió que no necesita más validación). CAM responde: “¿Cómo fabricamos esta pieza y cuánto tardará?”.</div>
+      <h3>📌 Flujo típico de CAM</h3>
+      <ol>
+        <li>Importar geometría CAD</li>
+        <li>Definir stock (materia prima) y origen de máquina</li>
+        <li>Seleccionar herramientas y parámetros de corte</li>
+        <li>Generar operaciones (desbaste, acabado, taladrado…)</li>
+        <li>Simular trayectorias (colisiones y rebanadas)</li>
+        <li>Postprocesar → G-code específico de la máquina</li>
+        <li>Enviar a CNC y verificar</li>
+      </ol>
+      <div class="video-card"><a href="https://www.youtube.com/watch?v=3LqwxAbOXpM" target="_blank">▶ Computer Aided Manufacturing (introducción)</a><div class="meta">Visión general de CAM</div><span class="tag video">Video</span></div>
+    `
+  },
+  "trayectorias": {
+    title: "Generación de Trayectorias y Programación CNC",
+    tags: ["Toolpath", "G-code"],
+    content: `
+      <h3>🎯 Operaciones típicas</h3>
+      <ul>
+        <li>Desbaste (roughing) – quitar material rápido</li>
+        <li>Acabado (finishing) – calidad superficial y tolerancias</li>
+        <li>Taladrado, roscado, mandrinado</li>
+        <li>Contorneado, cajeras, 3D surface machining</li>
+        <li>Estrategias de alta velocidad (HSM) y trocoidal</li>
+      </ul>
+      <h3>Postprocesador</h3>
+      <p>Traduce las trayectorias genéricas del CAM al dialecto de G-code de cada control (Fanuc, Siemens, Heidenhain, Haas…). Un postprocesador mal configurado es fuente clásica de errores.</p>
+      <div class="highlight-box">Siempre simula las trayectorias en el CAM y, si es posible, en un verificador de código NC antes de mandar a máquina real.</div>
+    `
+  },
+  "simulacion-cam": {
+    title: "Simulación de Mecanizado",
+    tags: ["Simulación", "Verificación"],
+    content: `
+      <h3>🎯 Por qué simular</h3>
+      <ul>
+        <li>Detectar colisiones herramienta-pieza, herramienta-útil o cabezal-mesa</li>
+        <li>Ver material restante y posibles “gubias”</li>
+        <li>Estimar tiempo de ciclo</li>
+        <li>Validar el postprocesador</li>
+      </ul>
+      <p>La simulación reduce drásticamente el riesgo de romper herramientas, dañar la máquina o fabricar piezas incorrectas en la primera pieza real.</p>
+    `
+  },
+  "pdm-plm": {
+    title: "Gestión de Datos de Producto (PDM / PLM)",
+    tags: ["PDM", "PLM"],
+    content: `
+      <h3>🎯 Problema que resuelve</h3>
+      <p>Cuando hay muchos diseñadores, versiones, planos, simulaciones y programas CAM, el control de “cuál es la versión correcta” se vuelve crítico.</p>
+      <ul>
+        <li><strong>PDM:</strong> Control de versiones, check-in/check-out, búsqueda y seguridad de archivos CAD.</li>
+        <li><strong>PLM:</strong> Visión del ciclo de vida completo (diseño → fabricación → servicio) e integración con ERP/MES.</li>
+      </ul>
+      <div class="highlight-box">En proyectos de automatización con varias personas, un PDM mínimo evita errores costosos de versión incorrecta.</div>
+    `
+  }
+};
+
+const data = {
+  label: "AUTOMATIZACIÓN DE PROCESOS",
+  children: [
+    {
+      label: "3. Diseño Mecánico",
+      branch: 3,
+      children: [
+        { label: "Concepto mecánico y cinemática", detailId: "concepto-mecanico" },
+        {
+          label: "Selección de actuadores",
+          children: [
+            { label: "Cilindros neumáticos / hidráulicos", detailId: "actuadores-neumo-hidro" },
+            { label: "Servomotores / motores paso a paso", detailId: "servomotores-stepper" },
+            { label: "Actuadores lineales eléctricos", detailId: "actuadores-lineales" },
+            { label: "Robots (cartesianos, SCARA, articulares, cobots)", detailId: "robots" }
+          ]
+        },
+        { label: "Diseño de estructuras y chasis", detailId: "estructuras-chasis" },
+        { label: "Sistemas de transmisión", detailId: "transmision" },
+        { label: "Elementos de sujeción y manipulación", detailId: "sujecion" },
+        { label: "Guía y soporte de movimiento", detailId: "guias" },
+        { label: "Seguridad mecánica", detailId: "seguridad-mecanica" },
+        { label: "Materiales y tratamientos superficiales", detailId: "materiales" }
+      ]
+    },
+    {
+      label: "4. Modelado CAD / CAM / CAE",
+      branch: 4,
+      children: [
+        {
+          label: "CAD (Computer-Aided Design)",
+          detailId: "cad-intro",
+          children: [
+            { label: "Modelado 3D de piezas y ensambles", detailId: "modelado-3d" },
+            { label: "Diseño paramétrico y configuraciones", detailId: "parametrico" },
+            { label: "Planos 2D y gestión de BOM", detailId: "planos-bom" },
+            { label: "Software típico (SolidWorks, Inventor, NX, Creo, CATIA)" }
+          ]
+        },
+        {
+          label: "CAE (Computer-Aided Engineering)",
+          detailId: "cae-intro",
+          children: [
+            { label: "Análisis estructural (FEA / MEF)", detailId: "fea" },
+            { label: "Análisis dinámico y de vibraciones", detailId: "dinamico-vibraciones" },
+            { label: "Análisis térmico y CFD", detailId: "termico-cfd" },
+            { label: "Simulación de mecanismos (Motion)", detailId: "simulacion-mecanismos" },
+            { label: "Optimización topológica / generativa", detailId: "topologia" }
+          ]
+        },
+        {
+          label: "CAM (Computer-Aided Manufacturing)",
+          detailId: "cam-intro",
+          children: [
+            { label: "Generación de trayectorias y programación CNC", detailId: "trayectorias" },
+            { label: "Simulación de mecanizado", detailId: "simulacion-cam" },
+            { label: "Postprocesadores" }
+          ]
+        },
+        { label: "Gestión de datos de producto (PDM / PLM)", detailId: "pdm-plm" }
+      ]
+    }
+  ]
+};
+
+function createNode(item, level = 0) {
+  const li = document.createElement('li');
+  if (item.branch) li.classList.add('branch-' + item.branch);
+  const hasChildren = item.children && item.children.length > 0;
+  const hasDetail = !!item.detailId;
+  const node = document.createElement('div');
+  node.className = 'node' + (level === 0 ? ' root' : '') + (!hasChildren && !hasDetail ? ' leaf' : '') + (hasDetail ? ' has-detail' : '');
+  if (hasChildren) {
+    const toggle = document.createElement('span');
+    toggle.className = 'toggle';
+    toggle.textContent = '+';
+    node.appendChild(toggle);
+  }
+  const label = document.createElement('span');
+  label.className = 'label';
+  label.textContent = item.label;
+  node.appendChild(label);
+  li.appendChild(node);
+  if (hasChildren) {
+    const childrenUl = document.createElement('ul');
+    childrenUl.className = 'children';
+    item.children.forEach(function(child) { childrenUl.appendChild(createNode(child, level + 1)); });
+    li.appendChild(childrenUl);
+    node.addEventListener('click', function(e) {
+      e.stopPropagation();
+      var isExpanded = node.classList.contains('expanded');
+      if (isExpanded) {
+        node.classList.remove('expanded');
+        node.querySelector('.toggle').textContent = '+';
+        childrenUl.style.display = 'none';
+      } else {
+        node.classList.add('expanded');
+        node.querySelector('.toggle').textContent = '−';
+        childrenUl.style.display = 'block';
+      }
+    });
+  }
+  if (hasDetail) {
+    node.addEventListener('click', function(e) {
+      e.stopPropagation();
+      showDetail(item.detailId);
+    });
+  }
+  return li;
+}
+
+function buildTree() {
+  var tree = document.getElementById('tree');
+  var ul = document.createElement('ul');
+  ul.appendChild(createNode(data, 0));
+  tree.appendChild(ul);
+  var rootNode = tree.querySelector('.node.root');
+  if (rootNode) {
+    rootNode.classList.add('expanded');
+    rootNode.querySelector('.toggle').textContent = '−';
+    rootNode.nextElementSibling.style.display = 'block';
+  }
+}
+
+function expandAll() {
+  document.querySelectorAll('.node:not(.leaf)').forEach(function(node) {
+    if (!node.querySelector('.toggle')) return;
+    node.classList.add('expanded');
+    node.querySelector('.toggle').textContent = '−';
+    var children = node.nextElementSibling;
+    if (children && children.classList.contains('children')) children.style.display = 'block';
+  });
+}
+
+function collapseAll() {
+  document.querySelectorAll('.node:not(.leaf)').forEach(function(node) {
+    if (node.classList.contains('root')) return;
+    node.classList.remove('expanded');
+    var toggle = node.querySelector('.toggle');
+    if (toggle) toggle.textContent = '+';
+    var children = node.nextElementSibling;
+    if (children && children.classList.contains('children')) children.style.display = 'none';
+  });
+}
+
+function focusSection(num) {
+  collapseAll();
+  var txt = num === 3 ? '3. Diseño Mecánico' : '4. Modelado CAD';
+  var target = Array.prototype.slice.call(document.querySelectorAll('.node')).find(function(n) {
+    return n.textContent.indexOf(txt) !== -1;
+  });
+  if (target) target.click();
+}
+
+function showDetail(id) {
+  var d = details[id];
+  if (!d) return;
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('detailContent').style.display = 'block';
+  document.getElementById('detailTitle').textContent = d.title;
+  document.getElementById('detailTags').innerHTML = d.tags.map(function(t) {
+    return '<span class="tag">' + t + '</span>';
+  }).join('');
+  document.getElementById('detailBody').innerHTML = d.content;
+  document.getElementById('detailPanel').classList.add('open');
+  document.getElementById('overlay').classList.add('show');
+}
+
+function closeDetail() {
+  document.getElementById('detailPanel').classList.remove('open');
+  document.getElementById('overlay').classList.remove('show');
+}
+
+/* ===== Resizable detail panel ===== */
+(function initResizer() {
+  var resizer = document.getElementById('resizer');
+  var panel = document.getElementById('detailPanel');
+  if (!resizer || !panel) return;
+
+  var startX, startWidth;
+
+  function onMouseMove(e) {
+    var dx = startX - e.clientX; // dragging left increases panel width
+    var newWidth = Math.min(Math.max(startWidth + dx, 320), window.innerWidth * 0.7);
+    panel.style.flex = '0 0 ' + newWidth + 'px';
+    panel.style.width = newWidth + 'px';
+  }
+
+  function onMouseUp() {
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mouseup', onMouseUp);
+    resizer.classList.remove('dragging');
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  }
+
+  resizer.addEventListener('mousedown', function(e) {
+    e.preventDefault();
+    startX = e.clientX;
+    startWidth = panel.getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('mouseup', onMouseUp);
+  });
+})();
+
+buildTree();
+</script>
+</body>
+</html>
